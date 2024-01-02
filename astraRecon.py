@@ -22,9 +22,8 @@ from concurrent.futures import ThreadPoolExecutor
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
 filterkeyword = "h3ll0w0rld"
+os.environ['PATH'] += os.pathsep + '/home/kali/go/bin'
 
 
 def safe_request(url):
@@ -63,8 +62,12 @@ def download_link(url):
 
 
 def fetch_banner():
-    response = requests.get("https://pastebin.com/raw/aFa3946m", verify=True)
-    return response.text
+    try:
+        response = requests.get("https://pastebin.com/raw/aFa3946m", verify=False)
+        return response.text
+    except requests.RequestException as e:
+        print(f"Error during request to Pastebin: {e}", file=sys.stderr)
+        return ""
   
 banner = fetch_banner()
 
@@ -97,7 +100,6 @@ def check_installed(tool, install_method):
         result = subprocess.run(["which", tool], capture_output=True, text=True)
     return result.returncode == 0
 
-
 def install_go():
     print("[-] Installing Go in the background...")
     process = subprocess.Popen(["sudo", "apt", "install", "golang-go", "-y"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -107,8 +109,6 @@ def install_go():
         print("[+] Go installed successfully.")
     else:
         print(f"[!] Failed to install Go. Error: {stderr.strip()}")
-
-
 
 def install_tools():
     print("Installing Go tools in the background...")
@@ -124,27 +124,31 @@ def install_tools():
       "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
       "github.com/tomnomnom/assetfinder@latest",
       "github.com/ProjectAnte/dnsgen/cmd/dnsgen@latest",
-      "github.com/jaeles-project/gospider@latest"
+      "github.com/jaeles-project/gospider@latest",  
+      "github.com/tomnomnom/waybackurls@latest",
+      "github.com/hakluke/hakrawler@latest",
+      "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
+      "github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
     ]
     
-    apt_tools = ["dnsgen"]
+    apt_tools = ["dnsgen", "libpcap-dev"]
 
     estimated_times = {"katana": 60, "alterx": 60, "cdncheck": 60, "dnsx": 60, "dnsprobe@latest": 60, "asnmap": 60, "nuclei": 60, "subfinder": 60, "assetfinder@latest": 60, "gospider@latest": 60, "dnsgen": 60}
     progress = {}
     lock = threading.Lock()
     threads = []
 
-    for tool in go_tools:
-        if not check_installed(tool, "go"):
-            est_time = estimated_times.get(tool.split('/')[2], 60)
-            thread = threading.Thread(target=install_tool, args=(tool, progress, lock, est_time, "go"), name=tool.split('/')[2])
-            threads.append(thread)
-            thread.start()
-
     for tool in apt_tools:
         if not check_installed(tool, "apt"):
             est_time = estimated_times.get(tool, 60)
             thread = threading.Thread(target=install_tool, args=(tool, progress, lock, est_time, "apt"), name=tool)
+            threads.append(thread)
+            thread.start()
+
+    for tool in go_tools:
+        if not check_installed(tool, "go"):
+            est_time = estimated_times.get(tool.split('/')[2], 60)
+            thread = threading.Thread(target=install_tool, args=(tool, progress, lock, est_time, "go"), name=tool.split('/')[2])
             threads.append(thread)
             thread.start()
 
@@ -169,6 +173,8 @@ def install_tools():
     create_and_download('directorys', download_directory_wordlists)
 
     clone_nuclei_templates()
+    
+
 
 def create_and_download(directory_name, download_function):
     os.makedirs(directory_name, exist_ok=True)
@@ -187,7 +193,6 @@ def clone_nuclei_templates():
     if process.returncode == 0:
         print("[+] Nuclei templates cloned successfully.")
         if os.path.exists(dest_dir):
-            print(f"[!] '{dest_dir}' already exists. Removing existing directory.")
             shutil.rmtree(dest_dir)
         shutil.move(clone_dir, dest_dir)
     else:
@@ -269,16 +274,17 @@ def run_assetfinder(target):
             f.write(result.stdout)
 
 def run_httpx(target):
-    result = safe_subprocess_run(["httpx", f"https://www.{target}"]) # add certfied. 
+    if target.startswith("http://"):
+        result = safe_subprocess_run(["httpx", f"{target}"])
+    else:
+        result = safe_subprocess_run(["httpx", "--no-verify", f"https://www.{target}"])
+    
+    os.makedirs('infos', exist_ok=True)
+
     if result:
         with open(f'infos/httpx.{target}', 'a') as f:
             f.write(result.stdout)
 
-# def run_dnsgen_httpx(target):
-#     result = safe_subprocess_run(["bash", "-c", f"echo {target} | dnsgen - | httpx -silent"])
-#     if result:
-#         with open(f'infos/httpx.{target}', 'a') as f:
-#             f.write(result.stdout)
 
 def run_naabu(target):
     ports = "1883,8889,443,80,3000,6090,9060,8060,21,111,14430,24430,34430,44430,54430,64430,74430,84430,94430,104430,4430,8080,8081,8082,8083,8084,8085,8086,8087,8088,8089,9090,9091,9092,9093,9094,9095,9096,9097,9098,9099,1443,2443,3443,4443,5443,6443,7443,8443,9443,10443,11443,12443,13443,14443,15443,16443,17443,18443,19443,20443,21443,22443,23443,24443,25443,26443,27443,28443,29443,30443,31443,32443,33443,34443,35443,36443,37443,38443,39443,40443,41443,42443,43443,44443,45443,46443,47443,48443,49443,50443,51443,52443,53443,54443,55443,56443,57443,58443,59443,60443,61443,62443,63443,64443,65443,66443,67443,68443,69443,70443,71443,72443,73443,74443,75443,76443,77443,78443,79443,80443,81443,82443,83443,84443,85443,86443,87443,88443,89443,90443,91443,92443,93443,94443,95443,96443,97443,98443,99443,100443"
@@ -387,21 +393,7 @@ def recon_hostname_fqdn(target):
         print(f"[!] Subdomains file {subs_file_path} does not exist.")
         return
 
-    # with open(subs_file_path, 'r') as subs_file:
-    #   subdomains = [sub.strip() for sub in subs_file]
-    
-    # commands = []
-    # for sub in subdomains:
-    #   commands.extend([
-    #     ["whatweb", sub],
-    #     ["wafw00f", sub],
-    #     ["httpx", "-sc", "-fr", "-cl", "-ct", "-location", "-favicon", "-jarm", "-rt", "-lc", "-wc", "-title", "-bp", "-server", "-td", "-method", "-websocket", "-ip", "-cname", "-asn", "-cdn", "-probe", sub],
-    #     ["cmseek", "-u", sub, "--follow-redirect", "-r"],
-    #     ["waybackurls", sub],
-    #     ["hakrawler", "-url", sub, "-depth", "3", "-plain"],
-    #     ["curl", "-ks", sub]
-    #   ])
-    
+
     with open(subs_file_path, 'r') as subs_file:
         for sub in subs_file:
             sub = sub.strip()
