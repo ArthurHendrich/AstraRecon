@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Home</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>Welcome to the Subdomain Scanner</h1>
+  <ul>
+    <li><a href="{{ url_for('subfinder') }}">Subfinder</a></li>
+    <li><a href="{{ url_for('assetfinder') }}">Assetfinder</a></li>
+    <li><a href="{{ url_for('httpx') }}">HTTPX</a></li>
+  </ul>
+</body>
+</html>
