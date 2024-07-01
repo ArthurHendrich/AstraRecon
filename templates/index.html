@@ -31,6 +31,11 @@
     <button id="install-wordlists" class="btn btn-info">Install Wordlists</button>
 </div>
 
+<div class="installation-log">
+    <h2>Installation Log</h2>
+    <pre id="install-log"></pre>
+</div>
+
 <div class="results">
     <h2>View Results</h2>
     <ul>
@@ -46,6 +51,7 @@ document.getElementById('install-tools').addEventListener('click', function() {
         .then(response => response.json())
         .then(data => alert(data.message))
         .catch(error => console.error('Error:', error));
+    checkInstallLog();
 });
 
 document.getElementById('install-wordlists').addEventListener('click', function() {
@@ -58,5 +64,20 @@ document.getElementById('install-wordlists').addEventListener('click', function(
     });
     alert('Wordlists installation started. Check the terminal for progress.');
 });
+
+function checkInstallLog() {
+    fetch('/install_log', { method: 'GET' })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('install-log').textContent = data.log.join('\n');
+            if (data.log.some(line => line.includes('complete') || line.includes('failed'))) {
+                return;
+            }
+            setTimeout(checkInstallLog, 1000);
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+checkInstallLog();
 </script>
 {% endblock %}

@@ -9,15 +9,32 @@ from flask import Flask, request, jsonify
 
 DATABASE = 'results.db'
 app = Flask(__name__)
+LOG_FILE = 'install_log.txt'
 
-def init_db(script_name):
+def init_db():
     with sqlite3.connect(DATABASE) as conn:
-        with open(f'db/{script_name}', 'r') as f:
-            conn.executescript(f.read())
+        scripts = [
+            'init_installed_tools.sql',
+            'init_asnmap.sql',
+            'init_assetfinder.sql',
+            'init_brute_wordlists.sql',
+            'init_directory_wordlists.sql',
+            'init_fuzz_wordlists.sql',
+            'init_gospider.sql',
+            'init_httpx.sql',
+            'init_katana.sql',
+            'init_naabu.sql',
+            'init_nuclei_templates.sql',
+            'init_subfinder.sql',
+            'init_tlsx.sql',
+            'init_wapiti.sql'
+        ]
+        for script in scripts:
+            with open(f'db/{script}', 'r') as f:
+                conn.executescript(f.read())
         conn.commit()
 
-# Initialize the database for installed tools
-init_db('init_installed_tools.sql')
+init_db()
 
 def add_installed_tool(tool_name, install_method, status):
     with sqlite3.connect(DATABASE) as conn:
@@ -31,10 +48,23 @@ def fetch_banner():
         response = requests.get("https://pastebin.com/raw/aFa3946m", verify=False)
         return response.text
     except requests.RequestException as e:
-        print(f"Error during request to Pastebin: {e}", file=sys.stderr)
+        log_message(f"Error during request to Pastebin: {e}")
         return ""
 
 banner = fetch_banner()
+
+def log_message(message):
+    with open(LOG_FILE, 'a') as f:
+        f.write(message + '\n')
+    print(message)  # Print the log message for debugging purposes
+
+def check_installed(tool, install_method):
+    if install_method == "go":
+        tool_name = tool.split('/')[2]
+        result = subprocess.run(["which", tool_name], capture_output=True, text=True)
+    else: 
+        result = subprocess.run(["which", tool], capture_output=True, text=True)
+    return result.returncode == 0
 
 go_tools = [
     "github.com/projectdiscovery/katana/cmd/katana@latest",
@@ -61,19 +91,13 @@ apt_tools = [
     "python3-pip"
 ]
 
-def check_installed(tool, install_method):
-    if install_method == "go":
-        tool_name = tool.split('/')[2]
-        result = subprocess.run(["which", tool_name], capture_output=True, text=True)
-    else: 
-        result = subprocess.run(["which", tool], capture_output=True, text=True)
-    return result.returncode == 0
-
 def install_tool(tool, progress, lock, estimated_time, install_method="go"):
     tool_name = tool.split('/')[2] if install_method == "go" else tool
     start_time = time.time()
     process = None
     status = "Failed"
+
+    log_message(f"Starting installation of {tool_name} using {install_method} method.")
 
     if install_method == "go":
         process = subprocess.Popen(["go", "install", "-v", tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -85,48 +109,28 @@ def install_tool(tool, progress, lock, estimated_time, install_method="go"):
         progress_percent = min(int((elapsed_time / estimated_time) * 100), 100)
         with lock:
             progress[tool_name] = progress_percent
+            log_message(f"{tool_name}: {progress_percent}%")
         time.sleep(1)
 
     with lock:
         if process.returncode == 0:
             status = "Installed"
             progress[tool_name] = 100
+            log_message(f"{tool_name}: Installation complete")
         else:
             progress[tool_name] = -1
+            log_message(f"{tool_name}: Installation failed")
         add_installed_tool(tool_name, install_method, status)
-
-# # Install wordlists 
-# @app.route('/install_wordlists', methods=['POST'])
-# def install_wordlists():
-#     estimated_times = request.json.get('estimated_times', {})
-#     progress = {}
-#     lock = threading.Lock()
-#     threads = []
-
-#     # just execute the scripts that are in the wordlists folder
-#     for wordlist in os.listdir("wordlists"):
-#         if not check_installed(wordlist, "wordlists"):
-#             est_time = estimated_times.get(wordlist, 60)
-#             thread = threading.Thread(target=install_tool, args=(wordlist, progress, lock, est_time, "wordlists"), name=wordlist)
-#             threads.append(thread)
-#             thread.start()
-    
-#     while any(thread.is_alive() for thread in threads):
-#         with lock:
-#             os.system('clear')  
-#             print(banner)
-#             for item, status in progress.items():
-#                 status_str = f"{status}%" if status >= 0 else "Failed"
-#                 print(f"[-] {item}: Installing {status_str}")
-#         time.sleep(1)
-        
 
 @app.route('/install_tools', methods=['POST'])
 def install_tools():
+    os.remove(LOG_FILE) if os.path.exists(LOG_FILE) else None
     estimated_times = request.json.get('estimated_times', {})
     progress = {}
     lock = threading.Lock()
     threads = []
+
+    log_message("Starting tools installation process.")
 
     for tool in apt_tools:
         if not check_installed(tool, "apt"):
@@ -134,6 +138,8 @@ def install_tools():
             thread = threading.Thread(target=install_tool, args=(tool, progress, lock, est_time, "apt"), name=tool)
             threads.append(thread)
             thread.start()
+        else:
+            log_message(f"{tool} is already installed.")
 
     for tool in go_tools:
         if not check_installed(tool, "go"):
@@ -141,18 +147,24 @@ def install_tools():
             thread = threading.Thread(target=install_tool, args=(tool, progress, lock, est_time, "go"), name=tool.split('/')[2])
             threads.append(thread)
             thread.start()
+        else:
+            log_message(f"{tool.split('/')[2]} is already installed.")
 
     while any(thread.is_alive() for thread in threads):
-        with lock:
-            os.system('clear')  
-            print(banner)
-            for item, status in progress.items():
-                status_str = f"{status}%" if status >= 0 else "Failed"
-                print(f"[-] {item}: Installing {status_str}")
         time.sleep(1)
 
-    print("All tools installed successfully.")
-    return jsonify({"message": "All tools installed successfully."})
+    log_message("Tools installation process completed.")
+    return jsonify({"message": "All tools installation process started. Check the progress in the interface."})
+
+@app.route('/install_log', methods=['GET'])
+def get_install_log():
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, 'r') as f:
+            return jsonify({"log": f.read().splitlines()})
+    return jsonify({"log": []})
 
 if __name__ == "__main__":
+    # run db
+    init_db()
     app.run(debug=True)
+

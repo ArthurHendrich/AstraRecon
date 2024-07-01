@@ -3,6 +3,9 @@ import sqlite3
 import subprocess
 import re
 import os
+import threading
+import time
+import requests
 
 app = Flask(__name__)
 DATABASE = 'results.db'
@@ -35,6 +38,16 @@ table_mapping = {
     'nuclei_templates': 'nuclei_templates'
 }
 
+def fetch_banner():
+    try:
+        response = requests.get("https://pastebin.com/raw/aFa3946m", verify=False)
+        return response.text
+    except requests.RequestException as e:
+        print(f"Error during request to Pastebin: {e}", file=sys.stderr)
+        return ""
+
+banner = fetch_banner()
+
 def format_target(target):
     """Formata o target para garantir que está no formato correto (ex: example.com)."""
     target = target.strip()
@@ -42,15 +55,22 @@ def format_target(target):
         target = target.split("//")[1]
     return target
 
-def run_script_and_process_results(script, tool, target, apply_regex=False):
-    target = format_target(target)
-    command = ['python', script, target]
+def run_script_and_process_results(script, tool, target=None, apply_regex=False):
+    if target:
+        target = format_target(target)
+        command = ['python', script, target]
+    else:
+        command = ['python', script]
+        
     result = subprocess.run(command, capture_output=True, text=True)
     
     # Salvar resultados no banco de dados
     with sqlite3.connect(DATABASE) as conn:
         c = conn.cursor()
-        c.execute(f'INSERT INTO {tool}_results (target, result) VALUES (?, ?)', (target, result.stdout))
+        if target:
+            c.execute(f'INSERT INTO {tool}_results (target, result) VALUES (?, ?)', (target, result.stdout))
+        else:
+            c.execute(f'INSERT INTO {tool}_results (result) VALUES (?)', (result.stdout,))
         conn.commit()
 
     # Aplicar regex se necessário
@@ -80,7 +100,7 @@ def get_subdomains_from_db(target):
 
 @app.route('/')
 def index():
-    return render_template('index.html', title="Home", table_mapping=table_mapping)
+    return render_template('index.html', title="Home", table_mapping=table_mapping, banner=banner)
 
 @app.route('/run/<tool>', methods=['POST'])
 def run_tool(tool):
@@ -119,6 +139,21 @@ def run_tool(tool):
     else:
         return jsonify({"error": "Tool not found"}), 404
 
+@app.route('/run_wordlist/<wordlist_script>', methods=['POST'])
+def run_wordlist_script(wordlist_script):
+    script_mapping = {
+        'clone_nuclei_templates': 'scripts/wordlists/clone_nuclei_templates_script.py',
+        'download_directory_wordlists': 'scripts/wordlists/download_directory_wordlists_script.py',
+        'download_wordlists_brute': 'scripts/wordlists/download_wordlists_brute_script.py',
+        'download_wordlists_fuzz': 'scripts/wordlists/download_wordlists_fuzz_script.py'
+    }
+
+    if wordlist_script in script_mapping:
+        result = run_script_and_process_results(script_mapping[wordlist_script], wordlist_script)
+        return jsonify({"result": result})
+    else:
+        return jsonify({"error": "Wordlist script not found"}), 404
+
 @app.route('/subdomain_enumeration', methods=['GET', 'POST'])
 def subdomain_enumeration():
     if request.method == 'POST':
@@ -128,8 +163,8 @@ def subdomain_enumeration():
         run_script_and_process_results('scripts/assetfinder_script.py', 'assetfinder', target)
         run_script_and_process_results('scripts/httpx_script.py', 'httpx', target, apply_regex=True)
         results = get_results_from_db('subfinder', target) + get_results_from_db('assetfinder', target) + get_results_from_db('httpx', target)
-        return render_template('subdomain_enumeration.html', title="Subdomain Enumeration", results=results)
-    return render_template('subdomain_enumeration.html', title="Subdomain Enumeration")
+        return render_template('subdomain_enumeration.html', title="Subdomain Enumeration", results=results, banner=banner)
+    return render_template('subdomain_enumeration.html', title="Subdomain Enumeration", banner=banner)
 
 @app.route('/recon_hostname_fqdn', methods=['GET', 'POST'])
 def recon_hostname_fqdn():
@@ -152,8 +187,8 @@ def recon_hostname_fqdn():
             run_script_and_process_results('scripts/wapiti_script.py', 'wapiti', sub)
             run_script_and_process_results('scripts/katana_script.py', 'katana', sub)
         results = get_results_from_db('whatweb', target) + get_results_from_db('wafw00f', target) + get_results_from_db('httpx', target) + get_results_from_db('cmseek', target) + get_results_from_db('waybackurls', target) + get_results_from_db('hakrawler', target) + get_results_from_db('naabu', target) + get_results_from_db('asnmap', target) + get_results_from_db('tlsx', target) + get_results_from_db('gospider', target) + get_results_from_db('wapiti', target) + get_results_from_db('katana', target)
-        return render_template('recon_hostname_fqdn.html', title="Recon Hostname FQDN", results=results)
-    return render_template('recon_hostname_fqdn.html', title="Recon Hostname FQDN")
+        return render_template('recon_hostname_fqdn.html', title="Recon Hostname FQDN", results=results, banner=banner)
+    return render_template('recon_hostname_fqdn.html', title="Recon Hostname FQDN", banner=banner)
 
 @app.route('/results/<tool>', methods=['GET'])
 def get_tool_results(tool):
@@ -162,7 +197,7 @@ def get_tool_results(tool):
         conn = get_db_connection()
         results = conn.execute(f'SELECT * FROM {table_name}').fetchall()
         conn.close()
-        return render_template('tool_results.html', title=f"Results for {tool}", tool_name=tool, results=[dict(row) for row in results])
+        return render_template('tool_results.html', title=f"Results for {tool}", tool_name=tool, results=[dict(row) for row in results], banner=banner)
     else:
         return jsonify({"error": "Tool not found"}), 404
 
@@ -198,37 +233,17 @@ def filter_output():
         conn.commit()
     return jsonify({"result": "Completed", "table": output_table})
 
-
-@app.route('/run_wordlist/<wordlist_script>', methods=['POST'])
-def run_wordlist_script(wordlist_script):
-    script_mapping = {
-        'clone_nuclei_templates': 'scripts/wordlists/clone_nuclei_templates_script.py',
-        'download_directory_wordlists': 'scripts/wordlists/download_directory_wordlists_script.py',
-        'download_wordlists_brute': 'scripts/wordlists/download_wordlists_brute_script.py',
-        'download_wordlists_fuzz': 'scripts/wordlists/download_wordlists_fuzz_script.py'
-    }
-
-    if wordlist_script in script_mapping:
-        result = run_script_and_process_results(script_mapping[wordlist_script], wordlist_script)
-        return jsonify({"result": result})
-    else:
-        return jsonify({"error": "Wordlist script not found"}), 404
-
 @app.route('/install_tools', methods=['POST'])
 def install_tools():
     subprocess.Popen(["python", "setup_tools/install_tools.py"])
     return jsonify({"message": "Installation started. Check the terminal for progress."})
 
-def get_results_from_db(tool, target):
-    target = format_target(target)
-    if tool in table_mapping:
-        table_name = table_mapping[tool]
-        conn = get_db_connection()
-        results = conn.execute(f'SELECT * FROM {table_name} WHERE target = ?', (target,)).fetchall()
-        conn.close()
-        return [dict(row) for row in results]
-    else:
-        return []
+@app.route('/install_log', methods=['GET'])
+def get_install_log():
+    if os.path.exists('install_log.txt'):
+        with open('install_log.txt', 'r') as f:
+            return jsonify({"log": f.read().splitlines()})
+    return jsonify({"log": []})
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
