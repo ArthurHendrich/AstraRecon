@@ -198,6 +198,27 @@ def filter_output():
         conn.commit()
     return jsonify({"result": "Completed", "table": output_table})
 
+
+@app.route('/run_wordlist/<wordlist_script>', methods=['POST'])
+def run_wordlist_script(wordlist_script):
+    script_mapping = {
+        'clone_nuclei_templates': 'scripts/wordlists/clone_nuclei_templates_script.py',
+        'download_directory_wordlists': 'scripts/wordlists/download_directory_wordlists_script.py',
+        'download_wordlists_brute': 'scripts/wordlists/download_wordlists_brute_script.py',
+        'download_wordlists_fuzz': 'scripts/wordlists/download_wordlists_fuzz_script.py'
+    }
+
+    if wordlist_script in script_mapping:
+        result = run_script_and_process_results(script_mapping[wordlist_script], wordlist_script)
+        return jsonify({"result": result})
+    else:
+        return jsonify({"error": "Wordlist script not found"}), 404
+
+@app.route('/install_tools', methods=['POST'])
+def install_tools():
+    subprocess.Popen(["python", "setup_tools/install_tools.py"])
+    return jsonify({"message": "Installation started. Check the terminal for progress."})
+
 def get_results_from_db(tool, target):
     target = format_target(target)
     if tool in table_mapping:

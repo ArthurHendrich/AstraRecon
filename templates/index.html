@@ -7,6 +7,10 @@
     <a href="{{ url_for('recon_hostname_fqdn') }}" class="btn btn-secondary btn-lg">Start Recon Hostname FQDN</a>
 </div>
 
+<div class="banner">
+    <pre>{{ banner }}</pre>
+</div>
+
 <div class="features">
     <h2>Features</h2>
     <div class="feature">
@@ -21,6 +25,12 @@
     </div>
 </div>
 
+<div class="installation">
+    <h2>Installation</h2>
+    <button id="install-tools" class="btn btn-success">Install Tools</button>
+    <button id="install-wordlists" class="btn btn-info">Install Wordlists</button>
+</div>
+
 <div class="results">
     <h2>View Results</h2>
     <ul>
@@ -29,4 +39,24 @@
         {% endfor %}
     </ul>
 </div>
+
+<script>
+document.getElementById('install-tools').addEventListener('click', function() {
+    fetch('/install_tools', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => alert(data.message))
+        .catch(error => console.error('Error:', error));
+});
+
+document.getElementById('install-wordlists').addEventListener('click', function() {
+    const wordlistScripts = ['clone_nuclei_templates', 'download_directory_wordlists', 'download_wordlists_brute', 'download_wordlists_fuzz'];
+    wordlistScripts.forEach(script => {
+        fetch(`/run_wordlist/${script}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => console.log(data.result))
+            .catch(error => console.error('Error:', error));
+    });
+    alert('Wordlists installation started. Check the terminal for progress.');
+});
+</script>
 {% endblock %}

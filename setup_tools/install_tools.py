@@ -95,6 +95,31 @@ def install_tool(tool, progress, lock, estimated_time, install_method="go"):
             progress[tool_name] = -1
         add_installed_tool(tool_name, install_method, status)
 
+# # Install wordlists 
+# @app.route('/install_wordlists', methods=['POST'])
+# def install_wordlists():
+#     estimated_times = request.json.get('estimated_times', {})
+#     progress = {}
+#     lock = threading.Lock()
+#     threads = []
+
+#     # just execute the scripts that are in the wordlists folder
+#     for wordlist in os.listdir("wordlists"):
+#         if not check_installed(wordlist, "wordlists"):
+#             est_time = estimated_times.get(wordlist, 60)
+#             thread = threading.Thread(target=install_tool, args=(wordlist, progress, lock, est_time, "wordlists"), name=wordlist)
+#             threads.append(thread)
+#             thread.start()
+    
+#     while any(thread.is_alive() for thread in threads):
+#         with lock:
+#             os.system('clear')  
+#             print(banner)
+#             for item, status in progress.items():
+#                 status_str = f"{status}%" if status >= 0 else "Failed"
+#                 print(f"[-] {item}: Installing {status_str}")
+#         time.sleep(1)
+        
 
 @app.route('/install_tools', methods=['POST'])
 def install_tools():
