@@ -1,7 +1,9 @@
 import requests
 import json
 import sys
-import re
+import sqlite3
+
+DATABASE = 'results.db'
 
 def crtsh(domain):
     subdomains = set()
@@ -11,7 +13,7 @@ def crtsh(domain):
 
     try:
         response = requests.get(url, timeout=25)
-        response.raise_for_status()  # Raise an HTTPError for bad responses
+        response.raise_for_status()
         content = response.content.decode('UTF-8')
 
         if content:
@@ -22,7 +24,7 @@ def crtsh(domain):
                     if '\n' in name_value:
                         subname_value = name_value.split('\n')
                         for subname in subname_value:
-                            subname = subname.strip()  # Remove leading/trailing spaces
+                            subname = subname.strip()
                             if subname and '*' in subname:
                                 wildcardsubdomains.add(subname)
                             elif subname:
@@ -35,9 +37,19 @@ def crtsh(domain):
 
     return subdomains, wildcardsubdomains
 
+def save_results(domain, subdomains, wildcardsubdomains):
+    with sqlite3.connect(DATABASE) as conn:
+        c = conn.cursor()
+        for subdomain in subdomains:
+            c.execute('INSERT INTO crtsh_results (domain, subdomain) VALUES (?, ?)', (domain, subdomain))
+        for wildcard in wildcardsubdomains:
+            c.execute('INSERT INTO crtsh_results (domain, subdomain) VALUES (?, ?)', (domain, wildcard))
+        conn.commit()
+
 if __name__ == "__main__":
     domain = sys.argv[1]
     subdomains, wildcardsubdomains = crtsh(domain)
+    save_results(domain, subdomains, wildcardsubdomains)
     for subdomain in subdomains:
         print(subdomain)
     for wildcard in wildcardsubdomains:

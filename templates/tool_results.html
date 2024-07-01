@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<h1>Results for {{ tool_name }}</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Target</th>
+            <th>Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for result in results %}
+        <tr>
+            <td>{{ result.target }}</td>
+            <td><pre>{{ result.result }}</pre></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

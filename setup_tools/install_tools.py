@@ -5,8 +5,7 @@ import subprocess
 import requests
 import sys
 import sqlite3
-from flask import Flask, request, jsonify, render_template
-from concurrent.futures import ThreadPoolExecutor
+from flask import Flask, request, jsonify
 
 DATABASE = 'results.db'
 app = Flask(__name__)
@@ -34,8 +33,33 @@ def fetch_banner():
     except requests.RequestException as e:
         print(f"Error during request to Pastebin: {e}", file=sys.stderr)
         return ""
-  
+
 banner = fetch_banner()
+
+go_tools = [
+    "github.com/projectdiscovery/katana/cmd/katana@latest",
+    "github.com/projectdiscovery/alterx/cmd/alterx@latest",
+    "github.com/projectdiscovery/cdncheck/cmd/cdncheck@latest",
+    "github.com/projectdiscovery/dnsx/cmd/dnsx@latest",
+    "github.com/projectdiscovery/httpx/cmd/httpx@latest",
+    "github.com/projectdiscovery/dnsprobe@latest",
+    "github.com/projectdiscovery/asnmap/cmd/asnmap@latest",
+    "github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest",
+    "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
+    "github.com/tomnomnom/assetfinder@latest",
+    "github.com/ProjectAnte/dnsgen/cmd/dnsgen@latest",
+    "github.com/jaeles-project/gospider@latest",  
+    "github.com/tomnomnom/waybackurls@latest",
+    "github.com/hakluke/hakrawler@latest",
+    "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
+    "github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
+]
+
+apt_tools = [
+    "curl",
+    "git",
+    "python3-pip"
+]
 
 def check_installed(tool, install_method):
     if install_method == "go":
@@ -71,10 +95,9 @@ def install_tool(tool, progress, lock, estimated_time, install_method="go"):
             progress[tool_name] = -1
         add_installed_tool(tool_name, install_method, status)
 
+
 @app.route('/install_tools', methods=['POST'])
 def install_tools():
-    go_tools = request.json.get('go_tools', [])
-    apt_tools = request.json.get('apt_tools', [])
     estimated_times = request.json.get('estimated_times', {})
     progress = {}
     lock = threading.Lock()
@@ -98,9 +121,9 @@ def install_tools():
         with lock:
             os.system('clear')  
             print(banner)
-            for tool, status in progress.items():
+            for item, status in progress.items():
                 status_str = f"{status}%" if status >= 0 else "Failed"
-                print(f"[-] {tool}: Installing {status_str}")
+                print(f"[-] {item}: Installing {status_str}")
         time.sleep(1)
 
     print("All tools installed successfully.")

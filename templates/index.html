@@ -1,23 +1,32 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Home</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-  <h1>Welcome to the Subdomain Scanner</h1>
-  <ul>
-    <li><a href="{{ url_for('subfinder') }}">Subfinder</a></li>
-    <li><a href="{{ url_for('assetfinder') }}">Assetfinder</a></li>
-    <li><a href="{{ url_for('httpx') }}">HTTPX</a></li>
-    <li><a href="{{ url_for('amass') }}">Amass</a></li>
-    <li><a href="{{ url_for('sublist3r') }}">Sublist3r</a></li>
-    <li><a href="{{ url_for('findomain') }}">Findomain</a></li>
-    <li><a href="{{ url_for('knockpy') }}">Knockpy</a></li>
-    <li><a href="{{ url_for('rapiddns') }}">RapidDNS</a></li>
-    <li><a href="{{ url_for('urlscan') }}">URLScan</a></li>
-    <li><a href="{{ url_for('alienvault') }}">AlienVault</a></li>
-  </ul>
-</body>
-</html>
+{% extends "layout.html" %}
+{% block content %}
+<div class="jumbotron">
+    <h1>Welcome to the Cybersecurity Tools API</h1>
+    <p>Your comprehensive suite for cybersecurity analysis and reconnaissance.</p>
+    <a href="{{ url_for('subdomain_enumeration') }}" class="btn btn-primary btn-lg">Start Subdomain Enumeration</a>
+    <a href="{{ url_for('recon_hostname_fqdn') }}" class="btn btn-secondary btn-lg">Start Recon Hostname FQDN</a>
+</div>
+
+<div class="features">
+    <h2>Features</h2>
+    <div class="feature">
+        <h3>Subdomain Enumeration</h3>
+        <p>Enumerate subdomains using tools like Subfinder, Assetfinder, and HTTPX. Get a comprehensive list of subdomains for your target.</p>
+        <a href="{{ url_for('subdomain_enumeration') }}" class="btn btn-outline-primary">Start Now</a>
+    </div>
+    <div class="feature">
+        <h3>Recon Hostname FQDN</h3>
+        <p>Perform a thorough reconnaissance of hostnames and fully qualified domain names (FQDN) using a suite of tools.</p>
+        <a href="{{ url_for('recon_hostname_fqdn') }}" class="btn btn-outline-secondary">Start Now</a>
+    </div>
+</div>
+
+<div class="results">
+    <h2>View Results</h2>
+    <ul>
+        {% for tool in table_mapping.keys() %}
+        <li><a href="{{ url_for('get_tool_results', tool=tool) }}">{{ tool | capitalize }} Results</a></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
