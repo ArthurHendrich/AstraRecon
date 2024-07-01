@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS installed_tools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_name TEXT NOT NULL,
+    install_method TEXT NOT NULL,
+    status TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);

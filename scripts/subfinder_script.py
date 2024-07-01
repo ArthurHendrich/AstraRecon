@@ -1,11 +1,17 @@
 import subprocess
 import sys
+import sqlite3
 
-def run_assetfinder(target):
-    result = subprocess.run(['assetfinder', '--subs-only', target], capture_output=True, text=True)
-    return result.stdout
+DATABASE = 'results.db'
+
+def run_subfinder(target):
+    result = subprocess.run(["subfinder", "--all", "--silent", "-d", target], capture_output=True, text=True)
+    if result.stdout:
+        with sqlite3.connect(DATABASE) as conn:
+            c = conn.cursor()
+            c.execute('INSERT INTO subfinder_results (target, result) VALUES (?, ?)', (target, result.stdout))
+            conn.commit()
 
 if __name__ == "__main__":
     target = sys.argv[1]
-    output = run_assetfinder(target)
-    print(output)
+    run_subfinder(target)

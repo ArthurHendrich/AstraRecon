@@ -1,76 +1,120 @@
-from flask import Flask, render_template, request, redirect, url_for
-import sqlite3
+from flask import Flask, request, jsonify
 import subprocess
-import os
+import sqlite3
 
 app = Flask(__name__)
 DATABASE = 'results.db'
 
-def init_db():
-    with sqlite3.connect(DATABASE) as conn:
-        with open('db/init.sql', 'r') as f:
-            conn.executescript(f.read())
-        conn.commit()
-
-def add_result(tool, target, result):
-    with sqlite3.connect(DATABASE) as conn:
-        c = conn.cursor()
-        c.execute('INSERT INTO results (tool, target, result) VALUES (?, ?, ?)', (tool, target, result))
-        conn.commit()
-
-def get_results(tool, target):
-    with sqlite3.connect(DATABASE) as conn:
-        c = conn.cursor()
-        c.execute('SELECT result FROM results WHERE tool = ? AND target = ?', (tool, target))
-        return c.fetchall()
-
-# Initialize the database
-init_db()
-
-# Function to run a script and store its output in the database
-def run_script(script_name, tool, target):
-    result = subprocess.run(['python', f'scripts/{script_name}.py', target], capture_output=True, text=True)
-    add_result(tool, target, result.stdout)
+def run_script(script, *args):
+    command = ['python', script] + list(args)
+    result = subprocess.run(command, capture_output=True, text=True)
     return result.stdout
 
-# Home route
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return "Welcome to the Cybersecurity Tools API"
 
-# Route for subfinder
-@app.route('/subfinder', methods=['GET', 'POST'])
-def subfinder():
-    if request.method == 'POST':
-        target = request.form['target']
-        result = run_script('subfinder_script', 'Subfinder', target)
-        return render_template('results.html', tool='Subfinder', target=target, results=result.split('\n'))
-    return render_template('subfinder.html')
+@app.route('/run/<tool>', methods=['POST'])
+def run_tool(tool):
+    target = request.json.get('target')
+    additional_args = request.json.get('args', [])
+    script_mapping = {
+        'alienvault': 'scripts/alienvault_script.py',
+        'anubis': 'scripts/anubis_script.py',
+        'asnmap': 'scripts/asnmap_script.py',
+        'assetfinder': 'scripts/assetfinder_script.py',
+        'censys': 'scripts/censys_script.py',
+        'cert_spotter': 'scripts/cert_spotter_script.py',
+        'crtsh': 'scripts/crtsh_script.py',
+        'gospider': 'scripts/gospider_script.py',
+        'hackertarget': 'scripts/hackertarget_script.py',
+        'httpx': 'scripts/httpx_script.py',
+        'katana': 'scripts/katana_script.py',
+        'naabu': 'scripts/naabu_script.py',
+        'rapiddns': 'scripts/rapiddns_script.py',
+        'security_trails': 'scripts/security_trails_script.py',
+        'shodan': 'scripts/shodan_script.py',
+        'spyse': 'scripts/spyse_script.py',
+        'subfinder': 'scripts/subfinder_script.py',
+        'tlsx': 'scripts/tlsx_script.py',
+        'urlscan': 'scripts/urlscan_script.py',
+        'virus_total': 'scripts/virus_total_script.py',
+        'wapiti': 'scripts/wapiti_script.py',
+    }
 
-# Route for assetfinder
-@app.route('/assetfinder', methods=['GET', 'POST'])
-def assetfinder():
-    if request.method == 'POST':
-        target = request.form['target']
-        result = run_script('assetfinder_script', 'Assetfinder', target)
-        return render_template('results.html', tool='Assetfinder', target=target, results=result.split('\n'))
-    return render_template('assetfinder.html')
+    if tool in script_mapping:
+        script_path = script_mapping[tool]
+        result = run_script(script_path, target, *additional_args)
+        return jsonify({"result": result})
+    else:
+        return jsonify({"error": "Tool not found"}), 404
 
-# Route for httpx
-@app.route('/httpx', methods=['GET', 'POST'])
-def httpx():
-    if request.method == 'POST':
-        target = request.form['target']
-        result = run_script('httpx_script', 'HTTPX', target)
-        return render_template('results.html', tool='HTTPX', target=target, results=result.split('\n'))
-    return render_template('httpx.html')
+@app.route('/run_wordlists', methods=['POST'])
+def run_wordlists():
+    action = request.json.get('action')
+    script_mapping = {
+        'download_directory_wordlists': 'scripts/wordlists/download_directory_wordlists_script.py',
+        'download_wordlists_brute': 'scripts/wordlists/download_wordlists_brute_script.py',
+        'download_wordlists_fuzz': 'scripts/wordlists/download_wordlists_fuzz_script.py',
+        'clone_nuclei_templates': 'scripts/wordlists/clone_nuclei_templates_script.py'
+    }
 
-# Results route
-@app.route('/results/<tool>/<target>')
-def results(tool, target):
-    db_results = get_results(tool, target)
-    results = [r[0] for r in db_results]
-    return render_template('results.html', tool=tool, target=target, results=results)
+    if action in script_mapping:
+        script_path = script_mapping[action]
+        result = run_script(script_path)
+        return jsonify({"result": result})
+    else:
+        return jsonify({"error": "Action not found"}), 404
 
-if __name__ == '__main__':
+@app.route('/run_setup_tools', methods=['POST'])
+def run_setup_tools():
+    script_path = 'scripts/setup_tools/install_tools.py'
+    result = run_script(script_path)
+    return jsonify({"result": result})
+
+@app.route('/results/<tool>', methods=['GET'])
+def get_results(tool):
+    table_mapping = {
+        'alienvault': 'alienvault_results',
+        'anubis': 'anubis_results',
+        'asnmap': 'asnmap_results',
+        'assetfinder': 'assetfinder_results',
+        'censys': 'censys_results',
+        'cert_spotter': 'cert_spotter_results',
+        'crtsh': 'crtsh_results',
+        'gospider': 'gospider_results',
+        'hackertarget': 'hackertarget_results',
+        'httpx': 'httpx_results',
+        'katana': 'katana_results',
+        'naabu': 'naabu_results',
+        'rapiddns': 'rapiddns_results',
+        'security_trails': 'security_trails_results',
+        'shodan': 'shodan_results',
+        'spyse': 'spyse_results',
+        'subfinder': 'subfinder_results',
+        'tlsx': 'tlsx_results',
+        'urlscan': 'urlscan_results',
+        'virus_total': 'virus_total_results',
+        'wapiti': 'wapiti_results',
+        'directory_wordlists': 'directory_wordlists',
+        'brute_wordlists': 'brute_wordlists',
+        'fuzz_wordlists': 'fuzz_wordlists',
+        'nuclei_templates': 'nuclei_templates'
+    }
+
+    if tool in table_mapping:
+        table_name = table_mapping[tool]
+        conn = get_db_connection()
+        results = conn.execute(f'SELECT * FROM {table_name}').fetchall()
+        conn.close()
+        return jsonify([dict(row) for row in results])
+    else:
+        return jsonify({"error": "Tool not found"}), 404
+
+if __name__ == "__main__":
     app.run(debug=True)
