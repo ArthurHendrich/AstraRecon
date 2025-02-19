@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS naabu_results (target TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS rapiddns_results (target TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS security_trails_results (target TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS shodan_results (target TEXT, result TEXT);
-CREATE TABLE IF NOT EXISTS spyse_results (target TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS subfinder_results (target TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS tlsx_results (target TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS urlscan_results (target TEXT, result TEXT);
